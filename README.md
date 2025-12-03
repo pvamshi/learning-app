@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Learning App
 
-## Getting Started
+A spaced repetition learning application built with Next.js and Supabase.
 
-First, run the development server:
+## Features
+
+- **Add Questions**: Input questions with answers and optional descriptions
+- **Game Mode**: Practice with 10 questions (20% difficult, 80% new)
+- **Revision Mode**: Systematic review using FIFO queue
+- **Progress Tracking**: View learning statistics and learned words
+- **Adaptive Scoring**: Questions start at score 4, decrease by 0.5 when correct, increase by 1 when wrong
+
+## Scoring System
+
+- **Initial Score**: 4.0
+- **Correct Answer**: -0.5
+- **Wrong/Don't Know**: +1.0
+- **Learned**: Score ≤ 0 (requires 8 correct answers from initial score)
+- **Difficult**: Score ≥ 5.0
+- **Max Score**: 10.0
+
+## Setup Instructions
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Set Up Supabase
+
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Copy your project URL and anon key
+3. Create `.env.local` file:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+### 3. Run Database Migration
+
+In your Supabase SQL Editor, run the contents of `schema.sql`:
+
+```sql
+-- Copy and paste the contents of schema.sql
+```
+
+### 4. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+learning-app/
+├── app/
+│   ├── add/          # Add question page
+│   ├── game/         # Game mode page
+│   ├── revision/     # Revision mode page
+│   ├── progress/     # Progress tracking page
+│   └── api/          # API routes
+│       ├── questions/
+│       ├── game/
+│       ├── answer/
+│       ├── revision/
+│       └── progress/
+├── lib/
+│   ├── supabase.ts   # Supabase client
+│   └── scoring.ts    # Scoring logic
+└── schema.sql        # Database schema
+```
 
-## Learn More
+## How It Works
 
-To learn more about Next.js, take a look at the following resources:
+### Game Mode
+- Selects 2 difficult questions (score ≥ 5)
+- Selects 8 new questions (score < 5)
+- Falls back to available questions if queues don't have enough
+- Shuffles questions randomly
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Revision Mode
+- Uses FIFO queue (oldest reviewed first)
+- Shows one question at a time
+- Re-queues questions with score > 0 after answering
+- Completes when all questions have score ≤ 0
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Progress Tracking
+- Total questions count
+- Learned questions count (score ≤ 0)
+- Progress percentage: (learned / total) * 100
+- List of all learned words
 
-## Deploy on Vercel
+## Future Enhancements
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Telegram bot integration for adding questions
+- Multi-choice questions for difficult words
+- Enhanced statistics and analytics
+- Spaced repetition scheduling
