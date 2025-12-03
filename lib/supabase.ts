@@ -1,9 +1,26 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
+let supabaseInstance: ReturnType<typeof createClient> | null = null;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function getSupabase() {
+  if (!supabaseInstance) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be set');
+    }
+
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+  }
+  return supabaseInstance;
+}
+
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get: (target, prop) => {
+    return getSupabase()[prop as keyof ReturnType<typeof createClient>];
+  },
+});
 
 export type Question = {
   id: string;
