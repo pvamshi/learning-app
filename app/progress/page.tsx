@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Question } from '@/lib/supabase';
+import { getDatabase, QuestionDocument } from '@/lib/db';
+import { initialSync } from '@/lib/sync';
 
 type ProgressData = {
   total: number;
   learned: number;
   progress: number;
-  learned_words: Question[];
+  learned_words: QuestionDocument[];
 };
 
 export default function ProgressPage() {
@@ -21,9 +22,29 @@ export default function ProgressPage() {
 
   const fetchProgress = async () => {
     try {
-      const res = await fetch('/api/progress');
-      const progressData = await res.json();
-      setData(progressData);
+      await initialSync();
+      const db = await getDatabase();
+
+      const total = await db.questions.count().exec();
+
+      const learnedDocs = await db.questions
+        .find({
+          selector: {
+            score: { $lte: 0 },
+          },
+        })
+        .exec();
+
+      const learned = learnedDocs.length;
+      const progress = total > 0 ? Math.round((learned / total) * 100) : 0;
+      const learned_words = learnedDocs.map(doc => doc.toJSON());
+
+      setData({
+        total,
+        learned,
+        progress,
+        learned_words,
+      });
       setLoading(false);
     } catch (err) {
       console.error('Failed to fetch progress:', err);

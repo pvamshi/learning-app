@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Question } from '@/lib/supabase';
+import { getDatabase, QuestionDocument, generateId } from '@/lib/db';
+import { calculateNewScore, isAnswerCorrect } from '@/lib/scoring';
+import { initialSync, startBackgroundSync } from '@/lib/sync';
 
 export default function RevisionMode() {
-  const [question, setQuestion] = useState<Question | null>(null);
+  const [question, setQuestion] = useState<QuestionDocument | null>(null);
   const [userAnswer, setUserAnswer] = useState('');
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{
     correct: boolean;
     correctAnswer: string;
@@ -16,14 +17,32 @@ export default function RevisionMode() {
 
   useEffect(() => {
     fetchNextQuestion();
+    const cleanup = startBackgroundSync(10000);
+    return cleanup;
   }, []);
 
   const fetchNextQuestion = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/revision');
-      const data = await res.json();
-      setQuestion(data.question);
+      await initialSync();
+      const db = await getDatabase();
+
+      // Get unlearned questions (score > 0) in FIFO order
+      const questions = await db.questions
+        .find({
+          selector: {
+            score: { $gt: 0 },
+          },
+          sort: [{ last_reviewed_at: 'asc' }],
+          limit: 1,
+        })
+        .exec();
+
+      if (questions.length > 0) {
+        setQuestion(questions[0].toJSON());
+      } else {
+        setQuestion(null);
+      }
       setLoading(false);
     } catch (err) {
       console.error('Failed to fetch question:', err);
@@ -34,28 +53,43 @@ export default function RevisionMode() {
   const handleSubmit = async (isDontKnow = false) => {
     if (!question) return;
 
-    setSubmitting(true);
+    const answer = isDontKnow ? '' : userAnswer;
 
+    // Check answer client-side
+    const correct = isAnswerCorrect(answer, question.answer);
+
+    // Calculate new score
+    const newScore = calculateNewScore(question.score, correct);
+
+    // Update in RxDB (instant)
     try {
-      const res = await fetch('/api/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question_id: question.id,
-          user_answer: isDontKnow ? '' : userAnswer,
-        }),
-      });
+      const db = await getDatabase();
+      const doc = await db.questions.findOne(question.id).exec();
+      if (doc) {
+        await doc.patch({
+          score: newScore,
+          last_reviewed_at: new Date().toISOString(),
+          is_dirty: true,
+        });
+      }
 
-      const data = await res.json();
-      setFeedback({
-        correct: data.correct,
-        correctAnswer: data.correct_answer,
+      // Record attempt
+      await db.attempts.insert({
+        id: generateId(),
+        question_id: question.id,
+        correct,
+        answered_at: new Date().toISOString(),
+        is_synced: false,
       });
     } catch (err) {
-      console.error('Failed to submit answer:', err);
-    } finally {
-      setSubmitting(false);
+      console.error('Failed to update question:', err);
     }
+
+    // Show feedback
+    setFeedback({
+      correct,
+      correctAnswer: question.answer,
+    });
   };
 
   const handleNext = () => {
@@ -133,21 +167,20 @@ export default function RevisionMode() {
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Type your answer..."
-                disabled={submitting}
+                autoFocus
               />
 
               <div className="flex gap-3">
                 <button
                   onClick={() => handleSubmit()}
-                  disabled={!userAnswer.trim() || submitting}
+                  disabled={!userAnswer.trim()}
                   className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  {submitting ? 'Submitting...' : 'Submit'}
+                  Submit
                 </button>
                 <button
                   onClick={() => handleSubmit(true)}
-                  disabled={submitting}
-                  className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
                 >
                   Don't Know
                 </button>
@@ -156,7 +189,12 @@ export default function RevisionMode() {
           ) : (
             <>
               <div
-                className={'p-4 rounded-md mb-4 ' + (feedback.correct ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800')}
+                className={
+                  'p-4 rounded-md mb-4 ' +
+                  (feedback.correct
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800')
+                }
               >
                 <p className="font-semibold">
                   {feedback.correct ? 'Correct!' : 'Incorrect'}
