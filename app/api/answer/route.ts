@@ -3,7 +3,12 @@ import { supabase } from '@/lib/supabase';
 import { calculateNewScore, isAnswerCorrect } from '@/lib/scoring';
 
 export async function POST(request: NextRequest) {
+  const start = Date.now();
+  console.log('[answer] Request started');
+
   const body = await request.json();
+  console.log(`[answer] Parse body: ${Date.now() - start}ms`);
+
   const { question_id, user_answer } = body;
 
   if (!question_id || user_answer === undefined) {
@@ -14,11 +19,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Get the question
+  const fetchStart = Date.now();
   const { data: question, error: fetchError } = await supabase
     .from('questions')
     .select('*')
     .eq('id', question_id)
     .single();
+  console.log(`[answer] Fetch question: ${Date.now() - fetchStart}ms`);
 
   if (fetchError || !question) {
     return NextResponse.json({ error: 'Question not found' }, { status: 404 });
@@ -31,6 +38,7 @@ export async function POST(request: NextRequest) {
   const newScore = calculateNewScore(question.score, correct);
 
   // Update question score and last_reviewed_at
+  const updateStart = Date.now();
   const { error: updateError } = await supabase
     .from('questions')
     .update({
@@ -38,22 +46,27 @@ export async function POST(request: NextRequest) {
       last_reviewed_at: new Date().toISOString(),
     })
     .eq('id', question_id);
+  console.log(`[answer] Update question: ${Date.now() - updateStart}ms`);
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
   // Record attempt
+  const attemptStart = Date.now();
   const { error: attemptError } = await supabase
     .from('attempts')
     .insert({
       question_id,
       correct,
     });
+  console.log(`[answer] Insert attempt: ${Date.now() - attemptStart}ms`);
 
   if (attemptError) {
     return NextResponse.json({ error: attemptError.message }, { status: 500 });
   }
+
+  console.log(`[answer] Total time: ${Date.now() - start}ms`);
 
   return NextResponse.json({
     correct,

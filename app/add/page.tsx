@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { getDatabase, generateId } from '@/lib/db';
+import { INITIAL_SCORE } from '@/lib/scoring';
 
 export default function AddQuestion() {
   const router = useRouter();
@@ -20,16 +22,26 @@ export default function AddQuestion() {
     setError('');
 
     try {
-      const res = await fetch('/api/questions', {
+      const db = await getDatabase();
+
+      // Insert into local DB (instant)
+      await db.questions.insert({
+        id: generateId(),
+        question_text: formData.question_text,
+        answer: formData.answer,
+        description: formData.description || null,
+        score: INITIAL_SCORE,
+        created_at: new Date().toISOString(),
+        last_reviewed_at: null,
+        is_dirty: true, // Will be synced to server
+      });
+
+      // Also save to server immediately for new questions
+      await fetch('/api/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to add question');
-      }
 
       setFormData({ question_text: '', answer: '', description: '' });
       alert('Question added successfully!');

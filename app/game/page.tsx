@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Question } from '@/lib/supabase';
+import { getDatabase, QuestionDocument, generateId } from '@/lib/db';
+import { calculateNewScore, isAnswerCorrect } from '@/lib/scoring';
+import { initialSync, startBackgroundSync } from '@/lib/sync';
+import { DIFFICULT_THRESHOLD } from '@/lib/scoring';
 
 export default function GameMode() {
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<QuestionDocument[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{
     correct: boolean;
     correctAnswer: string;
@@ -18,48 +20,119 @@ export default function GameMode() {
   const [gameFinished, setGameFinished] = useState(false);
 
   useEffect(() => {
-    fetchQuestions();
+    loadGame();
+
+    // Start background sync
+    const cleanup = startBackgroundSync(10000);
+    return cleanup;
   }, []);
 
-  const fetchQuestions = async () => {
+  const loadGame = async () => {
     try {
-      const res = await fetch('/api/game');
-      const data = await res.json();
-      setQuestions(data);
+      // Ensure initial sync
+      await initialSync();
+
+      const db = await getDatabase();
+
+      // Get difficult words (score >= 5)
+      const difficultWords = await db.questions
+        .find({
+          selector: {
+            score: { $gte: DIFFICULT_THRESHOLD, $gt: 0 },
+          },
+          sort: [{ last_reviewed_at: 'asc' }],
+          limit: 10,
+        })
+        .exec();
+
+      // Get new/unlearned words (score > 0 and < 5)
+      const newWords = await db.questions
+        .find({
+          selector: {
+            score: { $gt: 0, $lt: DIFFICULT_THRESHOLD },
+          },
+          sort: [{ last_reviewed_at: 'asc' }],
+          limit: 10,
+        })
+        .exec();
+
+      const difficult = difficultWords.map((d) => d.toJSON());
+      const newW = newWords.map((n) => n.toJSON());
+
+      // Mix: 20% difficult, 80% new
+      const targetDifficult = Math.min(2, difficult.length);
+      const targetNew = Math.min(8, newW.length);
+
+      let selectedQuestions = [
+        ...difficult.slice(0, targetDifficult),
+        ...newW.slice(0, targetNew),
+      ];
+
+      // Fill remaining
+      const remaining = 10 - selectedQuestions.length;
+      if (remaining > 0) {
+        const remainingDifficult = difficult.slice(targetDifficult);
+        const remainingNew = newW.slice(targetNew);
+        const additional = [...remainingDifficult, ...remainingNew].slice(
+          0,
+          remaining
+        );
+        selectedQuestions = [...selectedQuestions, ...additional];
+      }
+
+      // Shuffle
+      const shuffled = selectedQuestions.sort(() => Math.random() - 0.5);
+
+      setQuestions(shuffled);
       setLoading(false);
     } catch (err) {
-      console.error('Failed to fetch questions:', err);
+      console.error('Failed to load game:', err);
       setLoading(false);
     }
   };
 
   const handleSubmit = async (isDontKnow = false) => {
-    setSubmitting(true);
     const currentQuestion = questions[currentIndex];
+    const answer = isDontKnow ? '' : userAnswer;
 
+    // Check answer client-side
+    const correct = isAnswerCorrect(answer, currentQuestion.answer);
+
+    // Calculate new score client-side
+    const newScore = calculateNewScore(currentQuestion.score, correct);
+
+    // Update in RxDB (instant)
     try {
-      const res = await fetch('/api/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question_id: currentQuestion.id,
-          user_answer: isDontKnow ? '' : userAnswer,
-        }),
-      });
-
-      const data = await res.json();
-      setFeedback({
-        correct: data.correct,
-        correctAnswer: data.correct_answer,
-      });
-
-      if (data.correct) {
-        setScore(score + 1);
+      const db = await getDatabase();
+      const doc = await db.questions.findOne(currentQuestion.id).exec();
+      if (doc) {
+        await doc.patch({
+          score: newScore,
+          last_reviewed_at: new Date().toISOString(),
+          is_dirty: true, // Mark for sync
+        });
       }
+
+      // Record attempt
+      await db.attempts.insert({
+        id: generateId(),
+        question_id: currentQuestion.id,
+        correct,
+        answered_at: new Date().toISOString(),
+        is_synced: false,
+      });
     } catch (err) {
-      console.error('Failed to submit answer:', err);
-    } finally {
-      setSubmitting(false);
+      console.error('Failed to update question:', err);
+    }
+
+    // Show feedback
+    setFeedback({
+      correct,
+      correctAnswer: currentQuestion.answer,
+    });
+
+    if (correct) {
+      setScore(score + 1);
     }
   };
 
@@ -165,21 +238,20 @@ export default function GameMode() {
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Type your answer..."
-                disabled={submitting}
+                autoFocus
               />
 
               <div className="flex gap-3">
                 <button
                   onClick={() => handleSubmit()}
-                  disabled={!userAnswer.trim() || submitting}
+                  disabled={!userAnswer.trim()}
                   className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  {submitting ? 'Submitting...' : 'Submit'}
+                  Submit
                 </button>
                 <button
                   onClick={() => handleSubmit(true)}
-                  disabled={submitting}
-                  className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
                 >
                   Don't Know
                 </button>
@@ -188,7 +260,12 @@ export default function GameMode() {
           ) : (
             <>
               <div
-                className={'p-4 rounded-md mb-4 ' + (feedback.correct ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800')}
+                className={
+                  'p-4 rounded-md mb-4 ' +
+                  (feedback.correct
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800')
+                }
               >
                 <p className="font-semibold">
                   {feedback.correct ? 'Correct!' : 'Incorrect'}
