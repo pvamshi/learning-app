@@ -1,10 +1,63 @@
+'use client';
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getDatabase } from "@/lib/db";
+import { initialSync } from "@/lib/sync";
 
 export default function Home() {
+  const [progress, setProgress] = useState<{
+    total: number;
+    learned: number;
+    percentage: number;
+  } | null>(null);
+
+  useEffect(() => {
+    loadProgress();
+  }, []);
+
+  const loadProgress = async () => {
+    try {
+      await initialSync();
+      const db = await getDatabase();
+
+      const total = await db.questions.count().exec();
+      const learned = await db.questions
+        .find({
+          selector: {
+            score: { $lte: 0 },
+          },
+        })
+        .exec();
+
+      const percentage = total > 0 ? Math.round((learned.length / total) * 100) : 0;
+
+      setProgress({
+        total,
+        learned: learned.length,
+        percentage,
+      });
+    } catch (err) {
+      console.error('Failed to load progress:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8">Learning App</h1>
+        {progress && progress.total > 0 && (
+          <div className="mb-8 flex items-center gap-3">
+            <div className="flex-1 bg-gray-200 rounded-full h-3">
+              <div
+                className="bg-blue-600 h-3 rounded-full transition-all duration-500"
+                style={{ width: `${progress.percentage}%` }}
+              />
+            </div>
+            <span className="text-sm font-bold text-blue-600 min-w-[3rem] text-right">
+              {progress.percentage}%
+            </span>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Link
