@@ -64,8 +64,8 @@ export default function GameMode() {
         })
         .exec();
 
-      const difficult = difficultWords.map((d) => d.toJSON());
-      const newW = newWords.map((n) => n.toJSON());
+      const difficult: QuestionDocument[] = difficultWords.map((d) => d.toJSON() as QuestionDocument);
+      const newW: QuestionDocument[] = newWords.map((n) => n.toJSON() as QuestionDocument);
 
       // Mix: 20% difficult, 80% new
       const targetDifficult = Math.min(2, difficult.length);

@@ -49,7 +49,7 @@ export default function ProgressPage() {
       const learned_words: QuestionDocument[] = [];
 
       for (const q of allQuestions) {
-        const doc = q.toJSON();
+        const doc = q.toJSON() as QuestionDocument;
         const contribution = Math.max(0, (INITIAL_SCORE - doc.score) / INITIAL_SCORE);
         totalContribution += contribution;
         if (doc.score <= 0) {

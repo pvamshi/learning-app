@@ -46,7 +46,7 @@ export default function RevisionMode() {
         .exec();
 
       if (questions.length > 0) {
-        setQuestion(questions[0].toJSON());
+        setQuestion(questions[0].toJSON() as QuestionDocument);
       } else {
         setQuestion(null);
       }
