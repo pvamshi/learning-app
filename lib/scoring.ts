@@ -22,5 +22,14 @@ export function isDifficult(score: number): boolean {
 }
 
 export function isAnswerCorrect(userAnswer: string, correctAnswer: string): boolean {
-  return userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+  const userInput = userAnswer.trim().toLowerCase();
+
+  // Split correct answer by common delimiters (comma, semicolon)
+  const acceptableAnswers = correctAnswer
+    .split(/[,;]/)
+    .map(ans => ans.trim().toLowerCase())
+    .filter(ans => ans.length > 0);
+
+  // Check if user input matches any acceptable answer
+  return acceptableAnswers.some(ans => ans === userInput);
 }

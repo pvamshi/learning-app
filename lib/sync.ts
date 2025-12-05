@@ -81,21 +81,14 @@ export async function initialSync(): Promise<void> {
 
   const db = await getDatabase();
 
-  // Check if already synced
-  const count = await db.questions.count().exec();
-  if (count > 0) {
-    console.log('[sync] Already synced, skipping initial load');
-    return;
-  }
-
-  // Pull questions
+  // Pull questions from server
   const questions = await pullQuestionsFromServer();
-  console.log(`[sync] Pulled ${questions.length} questions`);
+  console.log(`[sync] Pulled ${questions.length} questions from server`);
 
-  // Insert into local DB
-  await db.questions.bulkInsert(questions);
+  // Upsert into local DB (insert new, update existing)
+  const results = await db.questions.bulkUpsert(questions);
 
-  console.log(`[sync] Initial sync complete in ${Date.now() - start}ms`);
+  console.log(`[sync] Initial sync complete in ${Date.now() - start}ms (${results.success.length} upserted)`);
 }
 
 // Background sync - push changes periodically
