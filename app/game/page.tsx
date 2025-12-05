@@ -34,11 +34,18 @@ export default function GameMode() {
 
       const db = await getDatabase();
 
+      // Get selected tag from localStorage
+      const selectedTag = localStorage.getItem('selectedTag');
+      const tagFilter = selectedTag && selectedTag !== 'all'
+        ? { tags: { $in: [selectedTag] } }
+        : {};
+
       // Get difficult words (score >= 5)
       const difficultWords = await db.questions
         .find({
           selector: {
             score: { $gte: DIFFICULT_THRESHOLD, $gt: 0 },
+            ...tagFilter,
           },
           sort: [{ last_reviewed_at: 'asc' }],
           limit: 10,
@@ -50,6 +57,7 @@ export default function GameMode() {
         .find({
           selector: {
             score: { $gt: 0, $lt: DIFFICULT_THRESHOLD },
+            ...tagFilter,
           },
           sort: [{ last_reviewed_at: 'asc' }],
           limit: 10,

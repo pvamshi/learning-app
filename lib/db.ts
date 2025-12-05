@@ -1,17 +1,19 @@
 import { createRxDatabase, addRxPlugin } from 'rxdb';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode';
+import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
 import type { RxDatabase, RxCollection } from 'rxdb';
 
-// Add dev mode plugin in development
+// Add plugins
+addRxPlugin(RxDBMigrationSchemaPlugin);
 if (process.env.NODE_ENV === 'development') {
   addRxPlugin(RxDBDevModePlugin);
 }
 
 // Question schema
 const questionSchema = {
-  version: 0,
+  version: 1,
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -44,6 +46,13 @@ const questionSchema = {
     is_dirty: {
       type: 'boolean',
       default: false,
+    },
+    tags: {
+      type: 'array',
+      items: {
+        type: 'string',
+      },
+      default: [],
     },
   },
   required: ['id', 'question_text', 'answer', 'score', 'created_at'],
@@ -86,6 +95,7 @@ export type QuestionDocument = {
   created_at: string;
   last_reviewed_at: string | null;
   is_dirty: boolean;
+  tags: string[];
 };
 
 export type AttemptDocument = {
@@ -121,6 +131,13 @@ export async function getDatabase(): Promise<DatabaseType> {
     await db.addCollections({
       questions: {
         schema: questionSchema,
+        migrationStrategies: {
+          1: function (oldDoc: any) {
+            // Add tags field to existing documents
+            oldDoc.tags = oldDoc.tags || [];
+            return oldDoc;
+          },
+        },
       },
       attempts: {
         schema: attemptSchema,

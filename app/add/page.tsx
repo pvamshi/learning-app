@@ -12,6 +12,7 @@ export default function AddQuestion() {
     question_text: '',
     answer: '',
     description: '',
+    tags: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,6 +25,12 @@ export default function AddQuestion() {
     try {
       const db = await getDatabase();
 
+      // Parse tags
+      const tags = formData.tags
+        .split(',')
+        .map(t => t.trim().toLowerCase())
+        .filter(t => t.length > 0);
+
       // Insert into local DB (instant)
       await db.questions.insert({
         id: generateId(),
@@ -34,6 +41,7 @@ export default function AddQuestion() {
         created_at: new Date().toISOString(),
         last_reviewed_at: null,
         is_dirty: true, // Will be synced to server
+        tags,
       });
 
       // Also save to server immediately for new questions
@@ -43,7 +51,7 @@ export default function AddQuestion() {
         body: JSON.stringify(formData),
       });
 
-      setFormData({ question_text: '', answer: '', description: '' });
+      setFormData({ question_text: '', answer: '', description: '', tags: '' });
       alert('Question added successfully!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -107,6 +115,23 @@ export default function AddQuestion() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={3}
             />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="tags" className="block text-sm font-medium mb-2">
+              Tags (Optional)
+            </label>
+            <input
+              type="text"
+              id="tags"
+              value={formData.tags}
+              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="verb, noun, grammar"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Separate multiple tags with commas
+            </p>
           </div>
 
           {error && (

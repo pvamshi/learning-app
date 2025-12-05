@@ -27,11 +27,18 @@ export default function RevisionMode() {
       await initialSync();
       const db = await getDatabase();
 
+      // Get selected tag from localStorage
+      const selectedTag = localStorage.getItem('selectedTag');
+      const tagFilter = selectedTag && selectedTag !== 'all'
+        ? { tags: { $in: [selectedTag] } }
+        : {};
+
       // Get unlearned questions (score > 0) in FIFO order
       const questions = await db.questions
         .find({
           selector: {
             score: { $gt: 0 },
+            ...tagFilter,
           },
           sort: [{ last_reviewed_at: 'asc' }],
           limit: 1,

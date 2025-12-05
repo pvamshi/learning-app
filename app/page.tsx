@@ -11,30 +11,57 @@ export default function Home() {
     learned: number;
     percentage: number;
   } | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [selectedTag, setSelectedTag] = useState<string>('all');
+
+  useEffect(() => {
+    loadTags();
+    // Load selected tag from localStorage
+    const saved = localStorage.getItem('selectedTag');
+    if (saved) setSelectedTag(saved);
+  }, []);
 
   useEffect(() => {
     loadProgress();
-  }, []);
+  }, [selectedTag]);
 
   const loadProgress = async () => {
     try {
       await initialSync();
       const db = await getDatabase();
 
-      const total = await db.questions.count().exec();
-      const learned = await db.questions
-        .find({
-          selector: {
-            score: { $lte: 0 },
-          },
-        })
-        .exec();
+      // Filter by selected tag
+      const tagFilter = selectedTag && selectedTag !== 'all'
+        ? { tags: { $in: [selectedTag] } }
+        : {};
 
-      const percentage = total > 0 ? Math.round((learned.length / total) * 100) : 0;
+      const allQuestions = await db.questions.find({
+        selector: tagFilter,
+      }).exec();
+      const total = allQuestions.length;
+
+      if (total === 0) {
+        setProgress(null);
+        return;
+      }
+
+      // Weighted progress calculation
+      const INITIAL_SCORE = 4.0;
+      let totalContribution = 0;
+      let learned = 0;
+
+      for (const q of allQuestions) {
+        const doc = q.toJSON();
+        const contribution = Math.max(0, (INITIAL_SCORE - doc.score) / INITIAL_SCORE);
+        totalContribution += contribution;
+        if (doc.score <= 0) learned++;
+      }
+
+      const percentage = Math.round((totalContribution / total) * 100);
 
       setProgress({
         total,
-        learned: learned.length,
+        learned,
         percentage,
       });
     } catch (err) {
@@ -42,9 +69,59 @@ export default function Home() {
     }
   };
 
+  const loadTags = async () => {
+    try {
+      const db = await getDatabase();
+      const allQuestions = await db.questions.find().exec();
+
+      const tagSet = new Set<string>();
+      for (const q of allQuestions) {
+        const doc = q.toJSON();
+        doc.tags?.forEach(tag => tagSet.add(tag));
+      }
+
+      setTags(Array.from(tagSet).sort());
+    } catch (err) {
+      console.error('Failed to load tags:', err);
+    }
+  };
+
+  const handleTagSelect = (tag: string) => {
+    setSelectedTag(tag);
+    localStorage.setItem('selectedTag', tag);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
+        {tags.length > 0 && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            <button
+              onClick={() => handleTagSelect('all')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                selectedTag === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              All
+            </button>
+            {tags.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => handleTagSelect(tag)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  selectedTag === tag
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
+
         {progress && progress.total > 0 && (
           <div className="mb-8 flex items-center gap-3">
             <div className="flex-1 bg-gray-200 rounded-full h-3">

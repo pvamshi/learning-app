@@ -15,29 +15,50 @@ type ProgressData = {
 export default function ProgressPage() {
   const [data, setData] = useState<ProgressData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedTag, setSelectedTag] = useState<string>('all');
+
+  useEffect(() => {
+    // Load selected tag from localStorage
+    const saved = localStorage.getItem('selectedTag');
+    if (saved) setSelectedTag(saved);
+  }, []);
 
   useEffect(() => {
     fetchProgress();
-  }, []);
+  }, [selectedTag]);
 
   const fetchProgress = async () => {
     try {
       await initialSync();
       const db = await getDatabase();
 
-      const total = await db.questions.count().exec();
+      // Filter by selected tag
+      const tagFilter = selectedTag && selectedTag !== 'all'
+        ? { tags: { $in: [selectedTag] } }
+        : {};
 
-      const learnedDocs = await db.questions
-        .find({
-          selector: {
-            score: { $lte: 0 },
-          },
-        })
-        .exec();
+      const allQuestions = await db.questions.find({
+        selector: tagFilter,
+      }).exec();
+      const total = allQuestions.length;
 
-      const learned = learnedDocs.length;
-      const progress = total > 0 ? Math.round((learned / total) * 100) : 0;
-      const learned_words = learnedDocs.map(doc => doc.toJSON());
+      // Weighted progress calculation
+      const INITIAL_SCORE = 4.0;
+      let totalContribution = 0;
+      let learned = 0;
+      const learned_words: QuestionDocument[] = [];
+
+      for (const q of allQuestions) {
+        const doc = q.toJSON();
+        const contribution = Math.max(0, (INITIAL_SCORE - doc.score) / INITIAL_SCORE);
+        totalContribution += contribution;
+        if (doc.score <= 0) {
+          learned++;
+          learned_words.push(doc);
+        }
+      }
+
+      const progress = total > 0 ? Math.round((totalContribution / total) * 100) : 0;
 
       setData({
         total,
