@@ -28,6 +28,7 @@ export async function pushDirtyQuestions(): Promise<void> {
     id: q.id,
     score: q.score,
     last_reviewed_at: q.last_reviewed_at,
+    tags: q.tags,
   }));
 
   await fetch('/api/sync/push', {

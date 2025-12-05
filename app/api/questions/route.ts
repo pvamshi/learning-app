@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { question_text, answer, description } = body;
+  const { question_text, answer, description, tags } = body;
 
   if (!question_text || !answer) {
     return NextResponse.json(
@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       answer,
       description: description || null,
       score: INITIAL_SCORE,
+      tags: tags || [],
     })
     .select()
     .single();

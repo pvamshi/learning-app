@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
       id: string;
       score: number;
       last_reviewed_at: string | null;
+      tags: string[];
     }>;
   };
 
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
       .update({
         score: update.score,
         last_reviewed_at: update.last_reviewed_at,
+        tags: update.tags,
       })
       .eq('id', update.id);
   }

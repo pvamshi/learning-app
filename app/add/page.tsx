@@ -48,7 +48,12 @@ export default function AddQuestion() {
       await fetch('/api/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          question_text: formData.question_text,
+          answer: formData.answer,
+          description: formData.description || null,
+          tags,
+        }),
       });
 
       setFormData({ question_text: '', answer: '', description: '', tags: '' });
