@@ -13,8 +13,10 @@ export default function QuestionsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [tags, setTags] = useState<string[]>([]);
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortField, setSortField] = useState<SortField>('score');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(50);
 
   useEffect(() => {
     const saved = localStorage.getItem('selectedTag');
@@ -47,7 +49,7 @@ export default function QuestionsPage() {
   };
 
   // Filter and sort in memory (fast)
-  const displayedQuestions = useMemo(() => {
+  const filteredAndSorted = useMemo(() => {
     // Filter by tag
     let filtered = allQuestions;
     if (selectedTag && selectedTag !== 'all') {
@@ -69,6 +71,18 @@ export default function QuestionsPage() {
 
     return sorted;
   }, [allQuestions, selectedTag, sortField, sortDirection]);
+
+  // Paginate
+  const totalPages = Math.ceil(filteredAndSorted.length / pageSize);
+  const displayedQuestions = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredAndSorted.slice(startIndex, startIndex + pageSize);
+  }, [filteredAndSorted, currentPage, pageSize]);
+
+  // Reset to page 1 when filter/sort changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedTag, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -126,7 +140,7 @@ export default function QuestionsPage() {
         </div>
 
         <h1 className="text-3xl font-bold mb-6">
-          Questions ({displayedQuestions.length})
+          Questions ({filteredAndSorted.length})
         </h1>
 
         {tags.length > 0 && (
@@ -157,7 +171,7 @@ export default function QuestionsPage() {
           </div>
         )}
 
-        {displayedQuestions.length === 0 ? (
+        {filteredAndSorted.length === 0 ? (
           <div className="bg-white p-6 rounded-lg shadow text-center">
             <p className="text-xl mb-4">No questions found.</p>
             <Link href="/add" className="text-blue-600 hover:underline">
@@ -165,7 +179,8 @@ export default function QuestionsPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <>
+            <div className="bg-white rounded-lg shadow overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-100 border-b">
                 <tr>
@@ -226,6 +241,31 @@ export default function QuestionsPage() {
               </tbody>
             </table>
           </div>
+
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between bg-white px-4 py-3 rounded-lg shadow">
+              <div className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages} • Showing {displayedQuestions.length} of {filteredAndSorted.length}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 rounded-md bg-blue-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 rounded-md bg-blue-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
         )}
       </div>
     </div>
