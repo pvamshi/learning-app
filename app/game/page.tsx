@@ -15,6 +15,7 @@ export default function GameMode() {
   const [feedback, setFeedback] = useState<{
     correct: boolean;
     correctAnswer: string;
+    isDontKnow?: boolean;
   } | null>(null);
   const [score, setScore] = useState(0);
   const [gameFinished, setGameFinished] = useState(false);
@@ -26,6 +27,20 @@ export default function GameMode() {
     const cleanup = startBackgroundSync(10000);
     return cleanup;
   }, []);
+
+  // Handle Enter key to go to next question after feedback
+  useEffect(() => {
+    if (!feedback) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        handleNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [feedback]);
 
   const loadGame = async () => {
     try {
@@ -40,11 +55,11 @@ export default function GameMode() {
         ? { tags: { $in: [selectedTag] } }
         : {};
 
-      // Get difficult words (score >= 5)
-      const difficultWords = await db.questions
+      // Get in-progress questions (score != 0, 4, 8)
+      const inProgressQuestions = await db.questions
         .find({
           selector: {
-            score: { $gte: DIFFICULT_THRESHOLD, $gt: 0 },
+            score: { $nin: [0, 4, 8] },
             ...tagFilter,
           },
           sort: [{ last_reviewed_at: 'asc' }],
@@ -52,40 +67,25 @@ export default function GameMode() {
         })
         .exec();
 
-      // Get new/unlearned words (score > 0 and < 5)
-      const newWords = await db.questions
-        .find({
-          selector: {
-            score: { $gt: 0, $lt: DIFFICULT_THRESHOLD },
-            ...tagFilter,
-          },
-          sort: [{ last_reviewed_at: 'asc' }],
-          limit: 10,
-        })
-        .exec();
+      const inProgress: QuestionDocument[] = inProgressQuestions.map((q) => q.toJSON() as QuestionDocument);
+      let selectedQuestions = [...inProgress];
 
-      const difficult: QuestionDocument[] = difficultWords.map((d) => d.toJSON() as QuestionDocument);
-      const newW: QuestionDocument[] = newWords.map((n) => n.toJSON() as QuestionDocument);
+      // If less than 10, fill with new questions (score = 4)
+      if (selectedQuestions.length < 10) {
+        const needed = 10 - selectedQuestions.length;
+        const newQuestions = await db.questions
+          .find({
+            selector: {
+              score: 4,
+              ...tagFilter,
+            },
+            sort: [{ last_reviewed_at: 'asc' }],
+            limit: needed,
+          })
+          .exec();
 
-      // Mix: 20% difficult, 80% new
-      const targetDifficult = Math.min(2, difficult.length);
-      const targetNew = Math.min(8, newW.length);
-
-      let selectedQuestions = [
-        ...difficult.slice(0, targetDifficult),
-        ...newW.slice(0, targetNew),
-      ];
-
-      // Fill remaining
-      const remaining = 10 - selectedQuestions.length;
-      if (remaining > 0) {
-        const remainingDifficult = difficult.slice(targetDifficult);
-        const remainingNew = newW.slice(targetNew);
-        const additional = [...remainingDifficult, ...remainingNew].slice(
-          0,
-          remaining
-        );
-        selectedQuestions = [...selectedQuestions, ...additional];
+        const newQ: QuestionDocument[] = newQuestions.map((q) => q.toJSON() as QuestionDocument);
+        selectedQuestions = [...selectedQuestions, ...newQ];
       }
 
       // Shuffle
@@ -137,6 +137,7 @@ export default function GameMode() {
     setFeedback({
       correct,
       correctAnswer: currentQuestion.answer,
+      isDontKnow,
     });
 
     if (correct) {
@@ -272,11 +273,13 @@ export default function GameMode() {
                   'p-4 rounded-md mb-4 ' +
                   (feedback.correct
                     ? 'bg-green-100 text-green-800'
+                    : feedback.isDontKnow
+                    ? 'bg-yellow-100 text-yellow-800'
                     : 'bg-red-100 text-red-800')
                 }
               >
                 <p className="font-semibold">
-                  {feedback.correct ? 'Correct!' : 'Incorrect'}
+                  {feedback.correct ? 'Correct!' : feedback.isDontKnow ? "Don't Know" : 'Incorrect'}
                 </p>
                 {!feedback.correct && (
                   <p className="mt-2">

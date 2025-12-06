@@ -9,6 +9,7 @@ export default function Home() {
   const [progress, setProgress] = useState<{
     total: number;
     learned: number;
+    inProgress: number;
     percentage: number;
   } | null>(null);
   const [tags, setTags] = useState<string[]>([]);
@@ -49,12 +50,14 @@ export default function Home() {
       const INITIAL_SCORE = 4.0;
       let totalContribution = 0;
       let learned = 0;
+      let inProgress = 0;
 
       for (const q of allQuestions) {
         const doc = q.toJSON();
         const contribution = Math.max(0, (INITIAL_SCORE - doc.score) / INITIAL_SCORE);
         totalContribution += contribution;
         if (doc.score <= 0) learned++;
+        if (doc.score !== 0 && doc.score !== 4 && doc.score !== 8) inProgress++;
       }
 
       const percentage = Math.round((totalContribution / total) * 100);
@@ -62,6 +65,7 @@ export default function Home() {
       setProgress({
         total,
         learned,
+        inProgress,
         percentage,
       });
     } catch (err) {
@@ -123,16 +127,21 @@ export default function Home() {
         )}
 
         {progress && progress.total > 0 && (
-          <div className="mb-8 flex items-center gap-3">
-            <div className="flex-1 bg-gray-200 rounded-full h-3">
-              <div
-                className="bg-blue-600 h-3 rounded-full transition-all duration-500"
-                style={{ width: `${progress.percentage}%` }}
-              />
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex-1 bg-gray-200 rounded-full h-3">
+                <div
+                  className="bg-blue-600 h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${progress.percentage}%` }}
+                />
+              </div>
+              <span className="text-sm font-bold text-blue-600 min-w-[3rem] text-right">
+                {progress.percentage}%
+              </span>
             </div>
-            <span className="text-sm font-bold text-blue-600 min-w-[3rem] text-right">
-              {progress.percentage}%
-            </span>
+            <div className="text-sm text-gray-600 text-right">
+              <span className="font-bold text-green-600">{progress.learned}</span>/{progress.total} learned • <span className="font-bold text-blue-600">{progress.inProgress}</span> in progress
+            </div>
           </div>
         )}
 
@@ -157,8 +166,8 @@ export default function Home() {
             href="/revision"
             className="p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
           >
-            <h2 className="text-2xl font-semibold mb-2">Revision Mode</h2>
-            <p className="text-gray-600">Review questions systematically</p>
+            <h2 className="text-2xl font-semibold mb-2">Questions</h2>
+            <p className="text-gray-600">View, manage, and delete questions</p>
           </Link>
 
           <Link

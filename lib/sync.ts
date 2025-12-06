@@ -85,8 +85,14 @@ export async function initialSync(): Promise<void> {
   const questions = await pullQuestionsFromServer();
   console.log(`[sync] Pulled ${questions.length} questions from server`);
 
+  // Deduplicate by ID (keep last occurrence)
+  const uniqueQuestions = Array.from(
+    new Map(questions.map(q => [q.id, q])).values()
+  );
+  console.log(`[sync] Deduplicated to ${uniqueQuestions.length} unique questions`);
+
   // Upsert into local DB (insert new, update existing)
-  const results = await db.questions.bulkUpsert(questions);
+  const results = await db.questions.bulkUpsert(uniqueQuestions);
 
   console.log(`[sync] Initial sync complete in ${Date.now() - start}ms (${results.success.length} upserted)`);
 }
