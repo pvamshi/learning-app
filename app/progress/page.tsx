@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getDatabase, QuestionDocument } from '@/lib/db';
-import { initialSync } from '@/lib/sync';
 
 type ProgressData = {
   total: number;
@@ -29,7 +28,6 @@ export default function ProgressPage() {
 
   const fetchProgress = async () => {
     try {
-      await initialSync();
       const db = await getDatabase();
 
       // Filter by selected tag

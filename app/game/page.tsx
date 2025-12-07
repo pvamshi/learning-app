@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getDatabase, QuestionDocument, generateId } from '@/lib/db';
 import { calculateNewScore, isAnswerCorrect } from '@/lib/scoring';
-import { initialSync, startBackgroundSync } from '@/lib/sync';
 import { DIFFICULT_THRESHOLD } from '@/lib/scoring';
 
 export default function GameMode() {
@@ -22,10 +21,6 @@ export default function GameMode() {
 
   useEffect(() => {
     loadGame();
-
-    // Start background sync
-    const cleanup = startBackgroundSync(10000);
-    return cleanup;
   }, []);
 
   // Handle Enter key to go to next question after feedback
@@ -44,9 +39,6 @@ export default function GameMode() {
 
   const loadGame = async () => {
     try {
-      // Ensure initial sync
-      await initialSync();
-
       const db = await getDatabase();
 
       // Get selected tag from localStorage

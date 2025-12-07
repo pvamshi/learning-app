@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { getDatabase, QuestionDocument } from '@/lib/db';
-import { initialSync } from '@/lib/sync';
 
 type SortField = 'question_text' | 'answer' | 'score' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -27,7 +26,6 @@ export default function QuestionsPage() {
   const loadAllQuestions = async () => {
     setLoading(true);
     try {
-      await initialSync();
       const db = await getDatabase();
       const questions = await db.questions.find().exec();
       const questionsList = questions.map((q) => q.toJSON() as QuestionDocument);

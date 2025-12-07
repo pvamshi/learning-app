@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getDatabase } from "@/lib/db";
-import { initialSync } from "@/lib/sync";
 
 export default function Home() {
   const [progress, setProgress] = useState<{
@@ -28,7 +27,6 @@ export default function Home() {
 
   const loadProgress = async () => {
     try {
-      await initialSync();
       const db = await getDatabase();
 
       // Filter by selected tag
