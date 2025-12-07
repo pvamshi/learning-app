@@ -32,8 +32,8 @@ export function isDifficult(score: number): boolean {
 export function isAnswerCorrect(userAnswer: string, correctAnswer: string): boolean {
   const userInput = userAnswer.trim().toLowerCase();
 
-  // Split correct answer by common delimiters (comma, semicolon)
-  const parts = correctAnswer.split(/[,;]/);
+  // Split correct answer by common delimiters (comma, semicolon, slash)
+  const parts = correctAnswer.split(/[,;/]/);
 
   const acceptableAnswers: string[] = [];
 
