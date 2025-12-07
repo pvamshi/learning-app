@@ -10,7 +10,12 @@ type SortDirection = 'asc' | 'desc';
 export default function QuestionsPage() {
   const [allQuestions, setAllQuestions] = useState<QuestionDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [selectedTag, setSelectedTag] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('selectedTag') || 'all';
+    }
+    return 'all';
+  });
   const [tags, setTags] = useState<string[]>([]);
   const [sortField, setSortField] = useState<SortField>('score');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -18,8 +23,6 @@ export default function QuestionsPage() {
   const [pageSize] = useState(50);
 
   useEffect(() => {
-    const saved = localStorage.getItem('selectedTag');
-    if (saved) setSelectedTag(saved);
     loadAllQuestions();
   }, []);
 

@@ -14,13 +14,12 @@ type ProgressData = {
 export default function ProgressPage() {
   const [data, setData] = useState<ProgressData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedTag, setSelectedTag] = useState<string>('all');
-
-  useEffect(() => {
-    // Load selected tag from localStorage
-    const saved = localStorage.getItem('selectedTag');
-    if (saved) setSelectedTag(saved);
-  }, []);
+  const [selectedTag, setSelectedTag] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('selectedTag') || 'all';
+    }
+    return 'all';
+  });
 
   useEffect(() => {
     fetchProgress();

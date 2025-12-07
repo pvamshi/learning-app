@@ -12,13 +12,15 @@ export default function Home() {
     percentage: number;
   } | null>(null);
   const [tags, setTags] = useState<string[]>([]);
-  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [selectedTag, setSelectedTag] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('selectedTag') || 'all';
+    }
+    return 'all';
+  });
 
   useEffect(() => {
     loadTags();
-    // Load selected tag from localStorage
-    const saved = localStorage.getItem('selectedTag');
-    if (saved) setSelectedTag(saved);
   }, []);
 
   useEffect(() => {
@@ -158,6 +160,14 @@ export default function Home() {
           >
             <h2 className="text-2xl font-semibold mb-2">Play Game</h2>
             <p className="text-gray-600">Practice with 10 random questions</p>
+          </Link>
+
+          <Link
+            href="/review"
+            className="p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
+          >
+            <h2 className="text-2xl font-semibold mb-2">Review Learned</h2>
+            <p className="text-gray-600">Practice learned questions to keep them fresh</p>
           </Link>
 
           <Link

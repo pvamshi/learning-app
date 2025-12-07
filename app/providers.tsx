@@ -1,19 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { initialSync, startBackgroundSync } from '@/lib/sync';
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
-  const [synced, setSynced] = useState(false);
-
   useEffect(() => {
     let cleanup: (() => void) | undefined;
 
     async function init() {
       try {
-        // Initial sync once per session
-        await initialSync();
-        setSynced(true);
+        // Initial sync in background (non-blocking)
+        initialSync().catch(err => console.error('Initial sync failed:', err));
 
         // Start background sync
         cleanup = startBackgroundSync(10000);
@@ -28,17 +25,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (cleanup) cleanup();
     };
   }, []);
-
-  if (!synced) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-xl font-semibold mb-2">Loading...</div>
-          <div className="text-gray-600">Syncing questions</div>
-        </div>
-      </div>
-    );
-  }
 
   return <>{children}</>;
 }
